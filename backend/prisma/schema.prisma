@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Job {
+  id              String    @id @default(cuid())
+  upworkId        String    @unique
+  title           String
+  description     String    @db.Text
+  url             String
+
+  // Budget
+  budgetType      String // "hourly" | "fixed"
+  budgetMin       Float?
+  budgetMax       Float?
+
+  // Metadata
+  clientLocation  String?
+  proposalCount   Int?
+  clientRating    Float?
+  clientSpent     String? // e.g. "$10K+"
+  postedAt        DateTime
+  scrapedAt       DateTime  @default(now())
+
+  // Skills tags from Upwork
+  skills          String[]
+
+  // AI Analysis
+  aiScore         Int? // 1-10
+  aiRationale     String?   @db.Text
+  aiRequirements  String?   @db.Text // extracted key requirements
+  aiRedFlags      String?   @db.Text // comma-separated flags
+  aiProposal      String?   @db.Text // full draft proposal
+  aiProcessedAt   DateTime?
+
+  // User Actions
+  status          JobStatus @default(NEW)
+  isBookmarked    Boolean   @default(false)
+  notes           String?   @db.Text
+  appliedAt       DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([aiScore])
+  @@index([postedAt])
+  @@index([isBookmarked])
+}
+
+enum JobStatus {
+  NEW
+  INTERESTED
+  APPLIED
+  REJECTED
+  ARCHIVED
+}
+
+model Settings {
+  id                  String   @id @default("singleton")
+
+  // Scraper config
+  apifyActorId        String   @default("blackfalcondata/upwork-scraper")
+  searchKeywords      String[] @default(["AI automation", "n8n", "make.com", "workflow automation", "AI agent"])
+  maxResults          Int      @default(50)
+
+  // Budget filters
+  minHourlyRate       Float    @default(25)
+  minFixedBudget      Float    @default(500)
+
+  // Proposal filter
+  maxProposals        Int      @default(10)
+
+  // Location filter
+  clientLocations     String[] @default([]) // empty = all locations
+
+  // Email config
+  recipientEmail      String   @default("")
+  emailScheduleHour   Int      @default(7) // 7 AM
+  emailScheduleTz     String   @default("Asia/Manila")
+
+  // AI config
+  minScoreToEmail     Int      @default(6) // Only email jobs scoring 6+
+  minScoreForProposal Int      @default(7) // Only generate proposals for 7+
+
+  // API keys (optional DB-stored overrides; fall back to env vars).
+  // Returned masked from the API, never in plaintext.
+  apifyApiKey         String? // overrides APIFY_API_KEY env
+  resendApiKey        String? // overrides RESEND_API_KEY env
+
+  updatedAt           DateTime @updatedAt
+}
+
+model ScrapeRun {
+  id            String    @id @default(cuid())
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  status        String // "running" | "completed" | "failed"
+  jobsFound     Int?
+  jobsMatched   Int?
+  errorMessage  String?
+}
